@@ -53,6 +53,7 @@ type Request struct {
 	WaitConditionNegate bool
 	KeepAlive           bool
 	AuthUser            string
+	WocuRealmTags       []string
 }
 
 // SortDirection can be either Asc or Desc
@@ -698,7 +699,7 @@ func (req *Request) ParseRequestHeaderLine(line []byte, options ParseOptions) (e
 
 	switch string(bytes.ToLower(matched[0])) {
 	case "filter":
-		err = ParseFilter(args, req.Table, &req.Filter, options)
+		err = ParseFilter(args, req.Table, &req.Filter, options, req)
 		req.NumFilter++
 		return
 	case "and":
@@ -708,14 +709,14 @@ func (req *Request) ParseRequestHeaderLine(line []byte, options ParseOptions) (e
 		err = ParseFilterOp(Or, args, &req.Filter)
 		return
 	case "stats":
-		err = ParseStats(args, req.Table, &req.Stats, options)
+		err = ParseStats(args, req.Table, &req.Stats, options, req)
 		req.NumFilter++
 		return
 	case "statsand":
-		err = parseStatsOp(And, args, req.Table, &req.Stats, options)
+		err = parseStatsOp(And, args, req.Table, &req.Stats, options, req)
 		return
 	case "statsor":
-		err = parseStatsOp(Or, args, req.Table, &req.Stats, options)
+		err = parseStatsOp(Or, args, req.Table, &req.Stats, options, req)
 		return
 	case "sort":
 		err = parseSortHeader(&req.Sort, args)
@@ -749,14 +750,14 @@ func (req *Request) ParseRequestHeaderLine(line []byte, options ParseOptions) (e
 		req.WaitObject = string(args)
 		return
 	case "waitcondition":
-		err = ParseFilter(args, req.Table, &req.WaitCondition, options)
+		err = ParseFilter(args, req.Table, &req.WaitCondition, options, req)
 		req.NumFilter++
 		return
 	case "waitconditionand":
-		err = parseStatsOp(And, args, req.Table, &req.WaitCondition, options)
+		err = parseStatsOp(And, args, req.Table, &req.WaitCondition, options, req)
 		return
 	case "waitconditionor":
-		err = parseStatsOp(Or, args, req.Table, &req.WaitCondition, options)
+		err = parseStatsOp(Or, args, req.Table, &req.WaitCondition, options, req)
 		return
 	case "waitconditionnegate":
 		req.WaitConditionNegate = true
@@ -838,10 +839,10 @@ func parseSortHeader(field *[]*SortField, value []byte) (err error) {
 	return
 }
 
-func parseStatsOp(op GroupOperator, value []byte, table TableName, stats *[]*Filter, options ParseOptions) (err error) {
+func parseStatsOp(op GroupOperator, value []byte, table TableName, stats *[]*Filter, options ParseOptions, req *Request) (err error) {
 	num, cerr := strconv.Atoi(string(value))
 	if cerr == nil && num == 0 {
-		err = ParseStats([]byte("state != 9999"), table, stats, options)
+		err = ParseStats([]byte("state != 9999"), table, stats, options, req)
 		return
 	}
 	err = ParseFilterOp(op, value, stats)

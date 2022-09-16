@@ -72,6 +72,9 @@ type Filter struct {
 	ColumnOptional OptionalFlags
 	// copy of Column.Index if Column is of type LocalStore
 	ColumnIndex int
+
+	// tags rows that match with Wocu realm
+	WocuRealmTag string
 }
 
 // Operator defines a filter operator.
@@ -288,15 +291,17 @@ func (f *Filter) ApplyValue(val float64, count int) {
 
 // ParseFilter parses a single line into a filter object.
 // It returns any error encountered.
-func ParseFilter(value []byte, table TableName, stack *[]*Filter, options ParseOptions) (err error) {
-	tmp := bytes.SplitN(value, []byte(" "), 3)
+func ParseFilter(value []byte, table TableName, stack *[]*Filter, options ParseOptions, req *Request) (err error) {
+	tmp := bytes.SplitN(value, []byte(" "), 4)
 	if len(tmp) < 2 {
-		err = errors.New("filter header must be Filter: <field> <operator> <value>")
+		err = errors.New("filter header must be Filter: <field> <operator> <value> <?WocuRealmTag>")
 		return
 	}
 	// filter are allowed to be empty
 	if len(tmp) == 2 {
 		tmp = append(tmp, []byte(""))
+	} else if len(tmp) == 3 {
+		tmp = append(tmp, []byte(""), []byte(""))
 	}
 
 	op, isRegex, err := parseFilterOp(tmp[1])
@@ -312,6 +317,11 @@ func ParseFilter(value []byte, table TableName, stack *[]*Filter, options ParseO
 		Negate:         false,
 		ColumnIndex:    -1,
 		ColumnOptional: col.Optional,
+		WocuRealmTag:   string(tmp[3]),
+	}
+
+	if len(tmp[3]) > 0 {
+		req.WocuRealmTags = append(req.WocuRealmTags, string(tmp[3]))
 	}
 
 	err = filter.setFilterValue(string(tmp[2]))
@@ -522,7 +532,7 @@ func parseFilterOp(in []byte) (op Operator, isRegex bool, err error) {
 
 // ParseStats parses a text line into a stats object.
 // It returns any error encountered.
-func ParseStats(value []byte, table TableName, stack *[]*Filter, options ParseOptions) (err error) {
+func ParseStats(value []byte, table TableName, stack *[]*Filter, options ParseOptions, req *Request) (err error) {
 	tmp := bytes.SplitN(value, []byte(" "), 2)
 	if len(tmp) < 2 {
 		err = fmt.Errorf("stats header, must be Stats: <field> <operator> <value> OR Stats: <sum|avg|min|max> <field>")
@@ -541,7 +551,7 @@ func ParseStats(value []byte, table TableName, stack *[]*Filter, options ParseOp
 	case "sum":
 		op = Sum
 	default:
-		err = ParseFilter(value, table, stack, options)
+		err = ParseFilter(value, table, stack, options, req)
 		if err != nil {
 			return
 		}

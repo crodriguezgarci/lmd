@@ -29,6 +29,7 @@ type DataRow struct {
 	dataServiceMemberList [][]ServiceMember      // stores list of servicemembers
 	dataStringLarge       []StringContainer      // stores large strings
 	dataInterfaceList     [][]interface{}
+	WocuRealmTag          []string
 }
 
 // NewDataRow creates a new DataRow
@@ -549,6 +550,18 @@ func VirtualColServicesWithInfo(d *DataRow, col *Column) interface{} {
 	return res
 }
 
+func VirtualColWocuRealm(d *DataRow, col *Column) interface{} {
+	if len(d.WocuRealmTag) != 0 {
+		// wocuRealmTag := make([]string, len(d.WocuRealmTag))
+		// copy(wocuRealmTag, d.WocuRealmTag)
+		wocuRealmTag := d.WocuRealmTag
+		// d.WocuRealmTag = make([]string, 0)
+		return string(wocuRealmTag[0])
+	}
+	// return *d.DataStore.Peer.ID
+	return ""
+}
+
 // VirtualColMembersWithState returns a list of hostgroup/servicegroup members with their states
 func VirtualColMembersWithState(d *DataRow, col *Column) interface{} {
 	switch d.DataStore.Table.Name {
@@ -695,6 +708,13 @@ func (d *DataRow) getVirtualSubLMDValue(col *Column) (val interface{}, ok bool) 
 	return
 }
 
+func (d *DataRow) WocuRealmTagRow(filter *Filter) {
+	// log.Infof("TagRow tag: ", filter.Tag)
+	if filter.WocuRealmTag != "" {
+		d.WocuRealmTag = append(d.WocuRealmTag, *&filter.WocuRealmTag)
+	}
+}
+
 // MatchFilter returns true if the given filter matches the given datarow.
 func (d *DataRow) MatchFilter(filter *Filter) bool {
 	// recursive group filter
@@ -704,11 +724,18 @@ func (d *DataRow) MatchFilter(filter *Filter) bool {
 			if !d.MatchFilter(f) {
 				return false
 			}
+			d.WocuRealmTagRow(f)
 		}
 		return true
 	case Or:
 		for _, f := range filter.Filter {
 			if d.MatchFilter(f) {
+				d.WocuRealmTagRow(f)
+			}
+		}
+		for _, f := range filter.Filter {
+			if d.MatchFilter(f) {
+				// d.WocuRealmTagRow(f)
 				return true
 			}
 		}

@@ -387,6 +387,9 @@ func NewHostsTable() (t *Table) {
 	t.AddExtraColumn("got_business_rule", LocalStore, Dynamic, IntCol, Shinken, "Whether the host state is an business rule based host or not (0/1)")
 	t.AddExtraColumn("parent_dependencies", LocalStore, Dynamic, StringCol, Shinken, "List of the dependencies (logical, network or business one) of this host")
 
+	// Wocu Monitoring specific
+	t.AddExtraColumn("wocu_realm", VirtualStore, None, StringCol, Shinken, "Wocu Realm added on fly by filter tag")
+
 	// icinga2 specific
 	t.AddExtraColumn("address6", LocalStore, Static, StringCol, Icinga2, "IPv6 address")
 
@@ -527,6 +530,9 @@ func NewServicesTable() (t *Table) {
 
 	// backend specific
 	t.AddExtraColumn("check_source", LocalStore, Dynamic, StringCol, Naemon|Icinga2, "Check source address")
+
+	// Wocu specific
+	t.AddExtraColumn("wocu_realm", VirtualStore, None, StringCol, Shinken, "Wocu Realm added on fly by filter tag")
 
 	// naemon specific
 	t.AddExtraColumn("obsess", LocalStore, Dynamic, IntCol, Naemon, "The obsessing over service")
