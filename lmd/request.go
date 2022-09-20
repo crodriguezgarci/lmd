@@ -53,7 +53,7 @@ type Request struct {
 	WaitConditionNegate bool
 	KeepAlive           bool
 	AuthUser            string
-	WocuRealmTags       []string
+	Tags                []string
 }
 
 // SortDirection can be either Asc or Desc

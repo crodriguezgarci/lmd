@@ -29,7 +29,7 @@ type DataRow struct {
 	dataServiceMemberList [][]ServiceMember      // stores list of servicemembers
 	dataStringLarge       []StringContainer      // stores large strings
 	dataInterfaceList     [][]interface{}
-	WocuRealmTag          []string
+	Tags                  []string
 }
 
 // NewDataRow creates a new DataRow
@@ -550,15 +550,11 @@ func VirtualColServicesWithInfo(d *DataRow, col *Column) interface{} {
 	return res
 }
 
-func VirtualColWocuRealm(d *DataRow, col *Column) interface{} {
-	if len(d.WocuRealmTag) != 0 {
-		// wocuRealmTag := make([]string, len(d.WocuRealmTag))
-		// copy(wocuRealmTag, d.WocuRealmTag)
-		wocuRealmTag := d.WocuRealmTag
-		// d.WocuRealmTag = make([]string, 0)
-		return string(wocuRealmTag[0])
+func VirtualColTags(d *DataRow, col *Column) interface{} {
+	if len(d.Tags) != 0 {
+		Tags := d.Tags
+		return string(Tags[0])
 	}
-	// return *d.DataStore.Peer.ID
 	return ""
 }
 
@@ -708,10 +704,9 @@ func (d *DataRow) getVirtualSubLMDValue(col *Column) (val interface{}, ok bool) 
 	return
 }
 
-func (d *DataRow) WocuRealmTagRow(filter *Filter) {
-	// log.Infof("TagRow tag: ", filter.Tag)
-	if filter.WocuRealmTag != "" {
-		d.WocuRealmTag = append(d.WocuRealmTag, *&filter.WocuRealmTag)
+func (d *DataRow) TagsRow(filter *Filter) {
+	if filter.Tag != "" {
+		d.Tags = append(d.Tags, filter.Tag)
 	}
 }
 
@@ -724,18 +719,17 @@ func (d *DataRow) MatchFilter(filter *Filter) bool {
 			if !d.MatchFilter(f) {
 				return false
 			}
-			d.WocuRealmTagRow(f)
+			d.TagsRow(f)
 		}
 		return true
 	case Or:
 		for _, f := range filter.Filter {
 			if d.MatchFilter(f) {
-				d.WocuRealmTagRow(f)
+				d.TagsRow(f)
 			}
 		}
 		for _, f := range filter.Filter {
 			if d.MatchFilter(f) {
-				// d.WocuRealmTagRow(f)
 				return true
 			}
 		}

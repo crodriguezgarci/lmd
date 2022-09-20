@@ -73,8 +73,8 @@ type Filter struct {
 	// copy of Column.Index if Column is of type LocalStore
 	ColumnIndex int
 
-	// tags rows that match with Wocu realm
-	WocuRealmTag string
+	// tags rows
+	Tag string
 }
 
 // Operator defines a filter operator.
@@ -294,7 +294,7 @@ func (f *Filter) ApplyValue(val float64, count int) {
 func ParseFilter(value []byte, table TableName, stack *[]*Filter, options ParseOptions, req *Request) (err error) {
 	tmp := bytes.SplitN(value, []byte(" "), 4)
 	if len(tmp) < 2 {
-		err = errors.New("filter header must be Filter: <field> <operator> <value> <?WocuRealmTag>")
+		err = errors.New("filter header must be Filter: <field> <operator> <value> <?tag>")
 		return
 	}
 	// filter are allowed to be empty
@@ -317,11 +317,11 @@ func ParseFilter(value []byte, table TableName, stack *[]*Filter, options ParseO
 		Negate:         false,
 		ColumnIndex:    -1,
 		ColumnOptional: col.Optional,
-		WocuRealmTag:   string(tmp[3]),
+		Tag:            string(tmp[3]),
 	}
 
 	if len(tmp[3]) > 0 {
-		req.WocuRealmTags = append(req.WocuRealmTags, string(tmp[3]))
+		req.Tags = append(req.Tags, string(tmp[3]))
 	}
 
 	err = filter.setFilterValue(string(tmp[2]))
