@@ -292,7 +292,7 @@ func (f *Filter) ApplyValue(val float64, count int) {
 // ParseFilter parses a single line into a filter object.
 // It returns any error encountered.
 func ParseFilter(value []byte, table TableName, stack *[]*Filter, options ParseOptions, req *Request) (err error) {
-	tmp := bytes.SplitN(value, []byte(" "), 4)
+	tmp := bytes.SplitN(value, []byte(" "), 3)
 	if len(tmp) < 2 {
 		err = errors.New("filter header must be Filter: <field> <operator> <value> <?tag>")
 		return
@@ -300,8 +300,12 @@ func ParseFilter(value []byte, table TableName, stack *[]*Filter, options ParseO
 	// filter are allowed to be empty
 	if len(tmp) == 2 {
 		tmp = append(tmp, []byte(""))
-	} else if len(tmp) == 3 {
-		tmp = append(tmp, []byte(""), []byte(""))
+	}
+
+	filter_value := bytes.SplitN([]byte(tmp[2]), []byte(">>>"), 2)
+
+	if len(filter_value) == 1 {
+		filter_value = append(filter_value, []byte(""))
 	}
 
 	op, isRegex, err := parseFilterOp(tmp[1])
@@ -317,14 +321,14 @@ func ParseFilter(value []byte, table TableName, stack *[]*Filter, options ParseO
 		Negate:         false,
 		ColumnIndex:    -1,
 		ColumnOptional: col.Optional,
-		Tag:            string(tmp[3]),
+		Tag:            string(filter_value[1]),
 	}
 
-	if len(tmp[3]) > 0 {
-		req.Tags = append(req.Tags, string(tmp[3]))
+	if len(filter_value[1]) > 0 {
+		req.Tags = append(req.Tags, string(filter_value[1]))
 	}
 
-	err = filter.setFilterValue(string(tmp[2]))
+	err = filter.setFilterValue(string(filter_value[0]))
 	if err != nil {
 		return
 	}

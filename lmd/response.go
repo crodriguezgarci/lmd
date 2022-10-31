@@ -850,21 +850,31 @@ Rows:
 			row.TagsRow(f)
 		}
 
+		row.Tags = removeDuplicateValues(row.Tags)
+
 		if !row.checkAuth(req.AuthUser) {
 			continue Rows
+		}
+
+		if len(row.Tags) > 0 {
+			for _, tag := range row.Tags {
+				if stringInSlice(tag, res.Request.Tags) {
+					result.Total++
+				}
+			}
+		} else {
+			result.Total++
 		}
 
 		// check if we have enough result rows already
 		// we still need to count how many result we would have...
 		if result.Total > limit {
 			if breakOnLimit {
+				row.Tags = make([]string, 0)
 				return
 			}
-			row.Tags = make([]string, 0)
 			continue Rows
 		}
-
-		row.Tags = removeDuplicateValues(row.Tags)
 
 		if len(row.Tags) > 0 {
 			for _, tag := range row.Tags {
@@ -882,12 +892,12 @@ Rows:
 					tagged_row.dataInterfaceList = row.dataInterfaceList
 					tagged_row.Tags = []string{tag}
 					result.Rows = append(result.Rows, tagged_row)
-					result.Total++
+					// result.Total++
 				}
 			}
 			row.Tags = make([]string, 0)
 		} else {
-			result.Total++
+			// result.Total++
 			result.Rows = append(result.Rows, row)
 		}
 	}
