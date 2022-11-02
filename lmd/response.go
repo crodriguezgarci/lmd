@@ -828,11 +828,10 @@ func (res *Response) gatherResultRows(store *DataStore, resultcollector chan *Pe
 	req := res.Request
 
 	// if there is no sort header or sort by name only,
-	// we can drastically reduce the result set by applying the limit here already
+	// we can drastically reduce the result set by applying the limit here already.
+	// If request has not defined limit, the value returned by
+	// optimizeResultLimit() will be -1
 	limit := req.optimizeResultLimit()
-	if limit <= 0 {
-		limit = len(store.Data) + 1
-	}
 
 	// no need to count all the way to the end unless the total number is required in wrapped_json output
 	breakOnLimit := res.Request.OutputFormat != OutputFormatWrappedJSON
@@ -868,7 +867,7 @@ Rows:
 
 		// check if we have enough result rows already
 		// we still need to count how many result we would have...
-		if result.Total > limit {
+		if limit >= 0 && result.Total > limit {
 			if breakOnLimit {
 				row.Tags = make([]string, 0)
 				return
