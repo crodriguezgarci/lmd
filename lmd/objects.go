@@ -540,6 +540,7 @@ func NewServicesTable() (t *Table) {
 
 	// shinken specific
 	t.AddExtraColumn("is_impact", LocalStore, Dynamic, IntCol, Shinken, "Whether the host state is an impact or not (0/1)")
+	t.AddExtraColumn("is_volatile", LocalStore, Dynamic, IntCol, Shinken, "Denote whether the service is “volatile” or not (0/1)")
 	t.AddExtraColumn("business_impact", LocalStore, Static, IntCol, Shinken, "An importance level. From 0 (not important) to 5 (top for business)")
 	t.AddExtraColumn("source_problems", LocalStore, Dynamic, StringListCol, Shinken, "The name of the source problems (host or service)")
 	t.AddExtraColumn("impacts", LocalStore, Dynamic, StringListCol, Shinken, "List of what the source impact (list of hosts and services)")
