@@ -842,7 +842,7 @@ Rows:
 
 		// does our filter match?
 		for _, f := range req.Filter {
-			if !row.MatchFilter(f) {
+			if !row.MatchFilter(f, false) {
 				row.Tags = make([]string, 0)
 				continue Rows
 			}
@@ -912,7 +912,7 @@ Rows:
 		result.RowsScanned++
 		// does our filter match?
 		for _, f := range req.Filter {
-			if !row.MatchFilter(f) {
+			if !row.MatchFilter(f, false) {
 				continue Rows
 			}
 		}

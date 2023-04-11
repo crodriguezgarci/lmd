@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 
 	jsoniter "github.com/json-iterator/go"
-	"github.com/lkarlslund/stringdedup"
 )
 
 const ListSepChar1 = "\x00"
@@ -711,12 +710,26 @@ func (d *DataRow) TagsRow(filter *Filter) {
 }
 
 // MatchFilter returns true if the given filter matches the given datarow.
-func (d *DataRow) MatchFilter(filter *Filter) bool {
+// negate param is to force filter to be negated. Default is false.
+func (d *DataRow) MatchFilter(filter *Filter, negate bool) bool {
 	// recursive group filter
-	switch filter.GroupOperator {
+	groupOperator := filter.GroupOperator
+	negate = negate || filter.Negate
+
+	if negate {
+		// Inverse the operation if negate is done at the GroupOperator
+		switch groupOperator {
+		case And:
+			groupOperator = Or
+		case Or:
+			groupOperator = And
+		}
+	}
+
+	switch groupOperator {
 	case And:
 		for _, f := range filter.Filter {
-			if !d.MatchFilter(f) {
+			if !d.MatchFilter(f, negate) {
 				return false
 			}
 			d.TagsRow(f)
@@ -724,12 +737,12 @@ func (d *DataRow) MatchFilter(filter *Filter) bool {
 		return true
 	case Or:
 		for _, f := range filter.Filter {
-			if d.MatchFilter(f) {
+			if d.MatchFilter(f, negate) {
 				d.TagsRow(f)
 			}
 		}
 		for _, f := range filter.Filter {
-			if d.MatchFilter(f) {
+			if d.MatchFilter(f, negate) {
 				return true
 			}
 		}
@@ -746,7 +759,7 @@ func (d *DataRow) MatchFilter(filter *Filter) bool {
 			Regexp:      filter.Regexp,
 			IsEmpty:     filter.IsEmpty,
 			CustomTag:   filter.CustomTag,
-			Negate:      filter.Negate,
+			Negate:      negate,
 			ColumnIndex: -1,
 		}
 		f.Column.DataType = filter.Column.DataType
@@ -755,7 +768,7 @@ func (d *DataRow) MatchFilter(filter *Filter) bool {
 		}
 		return f.Match(d)
 	}
-	if filter.Negate {
+	if negate {
 		return !filter.Match(d)
 	}
 	return filter.Match(d)
@@ -846,14 +859,13 @@ func (d *DataRow) UpdateValuesNumberOnly(dataOffset int, data []interface{}, col
 // CheckChangedIntValues returns true if the given data results in an update
 func (d *DataRow) CheckChangedIntValues(dataOffset int, data []interface{}, columns ColumnList) bool {
 	for j, col := range columns {
-		index := col.Index
 		switch col.DataType {
 		case IntCol:
-			if interface2int(data[j+dataOffset]) != d.dataInt[index] {
+			if interface2int(data[j+dataOffset]) != d.dataInt[col.Index] {
 				return true
 			}
 		case Int64Col:
-			if interface2int64(data[j+dataOffset]) != d.dataInt64[index] {
+			if interface2int64(data[j+dataOffset]) != d.dataInt64[col.Index] {
 				return true
 			}
 		}
@@ -929,7 +941,13 @@ func interface2int64(in interface{}) int64 {
 func interface2string(in interface{}) *string {
 	switch v := in.(type) {
 	case string:
-		dedupedstring := stringdedup.S(v)
+		dedupedstring := dedup.S(v)
+		return &dedupedstring
+	case []byte:
+		dedupedstring := dedup.BS(v)
+		return &dedupedstring
+	case *[]byte:
+		dedupedstring := dedup.BS(*v)
 		return &dedupedstring
 	case *string:
 		return v
@@ -937,8 +955,8 @@ func interface2string(in interface{}) *string {
 		val := ""
 		return &val
 	}
-	str := fmt.Sprintf("%v", in)
-	return &str
+	dedupedstring := dedup.S(fmt.Sprintf("%v", in))
+	return &dedupedstring
 }
 
 func interface2stringNoDedup(in interface{}) string {
@@ -1560,13 +1578,13 @@ func (d *DataRow) CountStats(stats []*Filter, result []*Filter) {
 		// counter must match their filter
 		switch s.StatsType {
 		case Counter:
-			if d.MatchFilter(s) {
+			if d.MatchFilter(s, false) {
 				result[resultPos].Stats++
 				result[resultPos].StatsCount++
 			}
 		case StatsGroup:
 			// if filter matches, recurse into sub stats
-			if d.MatchFilter(s) {
+			if d.MatchFilter(s, false) {
 				d.CountStats(s.Filter, result)
 			}
 		default:

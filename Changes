@@ -1,5 +1,30 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
+2.1.5    Tue Mar 21 15:23:39 CET 2023
+          - fix stats query optimizer when using Or aggregation
+          - add support for contacts groups column
+          - add support for multiple column headers (#137)
+          - print errors on config parse errors (#135)
+          - add logmode "stdout-journal" (#136)
+
+2.1.4    Mon Feb 20 09:35:17 CET 2023
+          - add StatsNegate support (#133)
+          - fix reusing keepalive connections
+          - retry on temporary network problems
+          - improve error logging on http errors
+          - reduce amount of connections
+          - add request duration histogram to prometheus metrics
+          - drop golang 1.18 support
+
+2.1.2    Fri Nov 11 10:40:28 CET 2022
+          - fix trailing Or: in update query
+
+2.1.1    Tue Sep 27 15:08:02 CEST 2022
+          - update dependencies
+
+2.1.0    Fri Aug 12 19:17:52 CEST 2022
+          - improve synchronization and locking
+
 2.0.9    Thu Jul 21 14:29:20 CEST 2022
           - fix wait condition queries always waiting 10seconds
 

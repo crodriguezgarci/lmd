@@ -67,6 +67,21 @@ func (ds *DataStoreSet) CreateObjectByType(table *Table) (store *DataStore, err 
 
 	t1 := time.Now()
 
+	// verify result set
+	keyLen := len(keys)
+	for i, row := range res {
+		if len(row) != keyLen {
+			err = fmt.Errorf("%s result set verification failed: len mismatch in row %d, expected %d columns and got %d", store.Table.Name.String(), i, keyLen, len(row))
+			if p.ErrorCount > 0 {
+				// silently cancel, backend broke during initialization, should have been logged already
+				log.Debugf("error during %s initialization, but backend is already failed: %s", &table.Name, err.Error())
+			} else {
+				log.Errorf("error during %s initialization: %s", &table.Name, err.Error())
+			}
+			return
+		}
+	}
+
 	// make sure all backends are sorted the same way
 	res = res.SortByPrimaryKey(table, req)
 
@@ -396,7 +411,7 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, statusKey PeerStat
 	p := ds.peer
 	lastUpdate := p.StatusGet(statusKey).(float64)
 
-	// do not do a full scan more often than every 30 seconds
+	// do not do a full scan more often than every 60 seconds
 	if lastUpdate > float64(time.Now().Unix()-MinFullScanInterval) {
 		return
 	}
@@ -442,20 +457,29 @@ func (ds *DataStoreSet) UpdateDeltaFullScan(store *DataStore, statusKey PeerStat
 	}
 
 	logWith(ds, req).Debugf("%s delta scan going to update %d timestamps", store.Table.Name.String(), len(missing))
-	filter := []string{filterStr}
-	filter = append(filter, composeTimestampFilter(missing, "last_check")...)
-	if len(filterStr) > 0 {
-		filter = append(filter, "Or: 2\n")
-	}
-	if len(filter) > 100 {
-		msg := fmt.Sprintf("%s delta scan timestamp filter too complex: %d", store.Table.Name.String(), len(missing))
+	timestampFilter := composeTimestampFilter(missing, "last_check")
+	if len(timestampFilter) > 100 {
+		msg := fmt.Sprintf("%s delta scan timestamp filter too complex: %d", store.Table.Name.String(), len(timestampFilter))
 		if p.HasFlag(HasLastUpdateColumn) {
 			logWith(ds, req).Warnf("%s", msg)
 		} else {
 			logWith(ds, req).Debugf("%s", msg)
 		}
-		return
+		// sync at least a few to get back on track
+		timestampFilter = timestampFilter[0:99]
 	}
+
+	filter := []string{}
+	if filterStr != "" {
+		filter = append(filter, filterStr)
+		if len(timestampFilter) > 0 {
+			filter = append(filter, timestampFilter...)
+			filter = append(filter, "Or: 2\n")
+		}
+	} else {
+		filter = append(filter, timestampFilter...)
+	}
+
 	err = updateFn(strings.Join(filter, ""), false)
 	if err != nil {
 		return

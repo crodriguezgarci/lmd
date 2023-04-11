@@ -25,11 +25,11 @@ func BenchmarkParseResultJSON(b *testing.B) {
 	if err != nil {
 		panic(err.Error())
 	}
-	conn, connType, err := peer.GetConnection()
+	conn, connType, err := peer.GetConnection(req)
 	if err != nil {
 		panic(err.Error())
 	}
-	resBytes, err := peer.getQueryResponse(req, req.String(), peer.Status[PeerAddr].(string), conn, connType)
+	resBytes, _, err := peer.getQueryResponse(req, req.String(), peer.Status[PeerAddr].(string), conn, connType)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -70,11 +70,11 @@ func BenchmarkParseResultWrappedJSON(b *testing.B) {
 	if err != nil {
 		panic(err.Error())
 	}
-	conn, connType, err := peer.GetConnection()
+	conn, connType, err := peer.GetConnection(req)
 	if err != nil {
 		panic(err.Error())
 	}
-	resBytes, err := peer.getQueryResponse(req, req.String(), peer.Status[PeerAddr].(string), conn, connType)
+	resBytes, _, err := peer.getQueryResponse(req, req.String(), peer.Status[PeerAddr].(string), conn, connType)
 	if err != nil {
 		panic(err.Error())
 	}

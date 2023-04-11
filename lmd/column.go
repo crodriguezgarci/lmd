@@ -68,6 +68,7 @@ var VirtualColumnMap = map[string]*VirtualColumnMapEntry{}
 type ServiceMember [2]string
 
 // FetchType defines if and how the column is updated.
+//
 //go:generate stringer -type=FetchType
 type FetchType uint8
 
@@ -86,6 +87,7 @@ const (
 )
 
 // DataType defines the data type of a column.
+//
 //go:generate stringer -type=DataType
 type DataType uint16
 
@@ -115,6 +117,7 @@ const (
 )
 
 // StorageType defines how this column is stored
+//
 //go:generate stringer -type=StorageType
 type StorageType uint8
 
@@ -178,6 +181,9 @@ const (
 
 	// HasServiceParentsColumn flag is set if remote site support service parents column
 	HasServiceParentsColumn
+
+	// HasContactsGroupColumn flag is set if remote site support contacts groups column
+	HasContactsGroupColumn
 )
 
 // OptionalFlagsStrings maps available backend flags to their string value
@@ -197,6 +203,7 @@ var OptionalFlagsStrings = map[OptionalFlags]string{
 	HasEventHandlerColumn:       "HasEventHandlerColumn",
 	HasStalenessColumn:          "HasStalenessColumn",
 	HasServiceParentsColumn:     "HasServiceParentsColumn",
+	HasContactsGroupColumn:      "HasContactsGroupColumn",
 }
 
 // String returns the string representation of used flags

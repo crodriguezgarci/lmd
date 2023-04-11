@@ -53,12 +53,14 @@ func (cl *ClientConnection) Handle() {
 
 		ch <- cl.answer(ctx)
 	}()
+	timeout := time.NewTimer(time.Duration(cl.listenTimeout) * time.Second)
 	select {
 	case err := <-ch:
+		timeout.Stop()
 		if err != nil {
 			logWith(ctx).Debugf("request failed with client error: %s", err.Error())
 		}
-	case <-time.After(time.Duration(cl.listenTimeout) * time.Second):
+	case <-timeout.C:
 		logWith(ctx).Warnf("request timed out (timeout: %s)", time.Duration(cl.listenTimeout)*time.Second)
 	}
 	cl.connection.Close()
@@ -129,6 +131,7 @@ func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request
 	}
 	commandsByPeer := make(map[string][]string)
 	for _, req := range reqs {
+		cl.keepAlive = req.KeepAlive
 		reqctx := context.WithValue(ctx, CtxRequest, req.ID())
 		t1 := time.Now()
 		if req.Command != "" {
@@ -175,6 +178,7 @@ func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request
 				Duration: duration,
 			}
 		}
+		promFrontendRequestDuration.Observe(float64(duration / time.Second))
 		if err != nil || !req.KeepAlive {
 			return
 		}
@@ -186,7 +190,6 @@ func (cl *ClientConnection) processRequests(ctx context.Context, reqs []*Request
 		return
 	}
 
-	cl.keepAlive = reqs[len(reqs)-1].KeepAlive
 	return nil
 }
 

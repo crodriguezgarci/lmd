@@ -2,7 +2,7 @@
 LMD - Livestatus Multitool daemon
 A livestatus in/out converter and caching daemon.
 
-Help
+# Help
 
 Use `lmd -h` to get help on command line parameters.
 */
@@ -32,6 +32,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/OneOfOne/xxhash"
 	"github.com/lkarlslund/stringdedup"
 	"github.com/sasha-s/go-deadlock"
 )
@@ -42,7 +43,7 @@ var Build string
 
 const (
 	// VERSION contains the actual lmd version
-	VERSION = "2.0.9"
+	VERSION = "2.1.5"
 	// NAME defines the name of this project
 	NAME = "lmd"
 
@@ -124,6 +125,8 @@ func (c ConnectionType) String() string {
 	log.Panicf("not implemented: %#v", c)
 	return ""
 }
+
+var dedup = stringdedup.New(xxhash.Checksum32)
 
 type LMDInstance struct {
 	Config            *Config              // reference to global config object
@@ -213,6 +216,7 @@ func (lmd *LMDInstance) setFlags() {
 	flag.BoolVar(&lmd.flags.flagVeryVerbose, "vv", false, "enable very verbose output")
 	flag.BoolVar(&lmd.flags.flagTraceVerbose, "vvv", false, "enable trace output")
 	flag.BoolVar(&lmd.flags.flagVersion, "version", false, "print version and exit")
+	flag.BoolVar(&lmd.flags.flagVersion, "V", false, "print version and exit")
 	flag.StringVar(&lmd.flags.flagProfile, "debug-profiler", "", "start pprof profiler on this port, ex. :6060")
 	flag.StringVar(&lmd.flags.flagCPUProfile, "cpuprofile", "", "write cpu profile to `file`")
 	flag.StringVar(&lmd.flags.flagMemProfile, "memprofile", "", "write memory profile to `file`")
@@ -282,7 +286,7 @@ func (lmd *LMDInstance) mainLoop() (exitCode int) {
 	}
 
 	if lmd.flags.flagProfile != "" {
-		log.Warnf("pprof profiler listening at %s", lmd.flags.flagProfile)
+		log.Warnf("pprof profiler listening at http://%s/debug/pprof/", lmd.flags.flagProfile)
 	}
 
 	once.Do(lmd.PrintVersion)
@@ -541,6 +545,7 @@ func (lmd *LMDInstance) checkFlags() {
 			fmt.Printf("ERROR: could not start CPU profile: %s", err.Error())
 			os.Exit(ExitCritical)
 		}
+		lmd.cpuProfileHandler = cpuProfileHandler
 	}
 
 	if lmd.flags.flagDeadlock <= 0 {
@@ -868,9 +873,9 @@ func ByteCountBinary(b int64) string {
 }
 
 func updateStatistics(qStat *QueryStats) {
-	size := stringdedup.Size()
+	size := dedup.Size()
 	promStringDedupCount.Set(float64(size))
-	promStringDedupBytes.Set(float64(stringdedup.ByteCount()))
+	promStringDedupBytes.Set(float64(dedup.Statistics().BytesInMemory))
 	promStringDedupIndexBytes.Set(float64(32 * size))
 	if qStat != nil {
 		qStat.LogTrigger <- true

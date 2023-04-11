@@ -8,8 +8,8 @@ GOVERSION:=$(shell \
     awk -F'go| ' '{ split($$5, a, /\./); printf ("%04d%04d", a[1], a[2]); exit; }' \
 )
 # also update README.md when changing minumum version
-MINGOVERSION:=00010017
-MINGOVERSIONSTR:=1.17
+MINGOVERSION:=00010019
+MINGOVERSIONSTR:=1.19
 BUILD:=$(shell git rev-parse --short HEAD)
 # see https://github.com/go-modules-by-example/index/blob/master/010_tools/README.md
 # and https://github.com/golang/go/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module
@@ -45,7 +45,7 @@ vendor:
 	go mod vendor
 
 dump:
-	if [ $(shell grep -rc Dump $(LAMPDDIR)/*.go | grep -v :0 | grep -v $(LAMPDDIR)/dump.go | wc -l) -ne 0 ]; then \
+	if [ $(shell grep -r Dump $(LAMPDDIR)/*.go | grep -v $(LAMPDDIR)/dump.go | grep -v httputil | wc -l) -ne 0 ]; then \
 		sed -i.bak -e 's/\/\/go:build.*/\/\/ :build with debug functions/' -e 's/\/\/ +build.*/\/\/ build with debug functions/' $(LAMPDDIR)/dump.go; \
 	else \
 		sed -i.bak -e 's/\/\/ :build.*/\/\/go:build ignore/' -e 's/\/\/ build.*/\/\/ +build ignore/' $(LAMPDDIR)/dump.go; \
@@ -59,18 +59,18 @@ build-linux-amd64: vendor
 	cd $(LAMPDDIR) && GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.Build=$(BUILD)" -o lmd.linux.amd64
 
 debugbuild: fmt dump vendor
-	cd $(LAMPDDIR) && go build -race -ldflags "-X main.Build=$(BUILD)"
+	cd $(LAMPDDIR) && go build -race -ldflags "-X main.Build=$(BUILD)" -gcflags "-d=checkptr=0"
 
 devbuild: debugbuild
 
 test: fmt dump vendor
-	cd $(LAMPDDIR) && go test -short -v | ../t/test_counter.sh
+	cd $(LAMPDDIR) && go test -timeout 300s -short -v | ../t/test_counter.sh
 	rm -f lmd/mock*.sock
 	if grep -rn TODO: lmd/; then exit 1; fi
-	if grep -rn Dump lmd/*.go | grep -v dump.go; then exit 1; fi
+	if grep -rn Dump lmd/*.go | grep -v dump.go | grep -v httputil; then exit 1; fi
 
 longtest: fmt dump vendor
-	cd $(LAMPDDIR) && go test -v | ../t/test_counter.sh
+	cd $(LAMPDDIR) && go test -timeout 300s -v | ../t/test_counter.sh
 	rm -f lmd/mock*.sock
 
 citest: vendor
@@ -90,20 +90,21 @@ citest: vendor
 	#
 	# Checking remaining debug calls
 	#
-	if grep -rn Dump lmd/*.go | grep -v dump.go; then exit 1; fi
+	if grep -rn Dump lmd/*.go | grep -v dump.go | grep -v httputil; then exit 1; fi
 	#
 	# Run other subtests
 	#
 	$(MAKE) golangci
+	-$(MAKE) govulncheck
 	$(MAKE) fmt
 	#
 	# Normal test cases
 	#
-	cd $(LAMPDDIR) && go test -v | ../t/test_counter.sh
+	cd $(LAMPDDIR) && go test -timeout 300s -v | ../t/test_counter.sh
 	#
 	# Benchmark tests
 	#
-	cd $(LAMPDDIR) && go test -v -bench=B\* -run=^$$ . -benchmem
+	cd $(LAMPDDIR) && go test -timeout 300s -v -bench=B\* -run=^$$ . -benchmem
 	#
 	# Race rondition tests
 	#
@@ -114,18 +115,18 @@ citest: vendor
 	go mod tidy
 
 benchmark: fmt
-	cd $(LAMPDDIR) && go test -ldflags "-s -w -X main.Build=$(BUILD)" -v -bench=B\* -benchtime 10s -run=^$$ . -benchmem
+	cd $(LAMPDDIR) && go test -timeout 300s -ldflags "-s -w -X main.Build=$(BUILD)" -v -bench=B\* -benchtime 10s -run=^$$ . -benchmem
 
 racetest: fmt
-	cd $(LAMPDDIR) && go test -race -short -v
+	cd $(LAMPDDIR) && go test -timeout 300s -race -short -v -gcflags "-d=checkptr=0"
 
 covertest: fmt
-	cd $(LAMPDDIR) && go test -v -coverprofile=cover.out
+	cd $(LAMPDDIR) && go test -timeout 300s -v -coverprofile=cover.out
 	cd $(LAMPDDIR) && go tool cover -func=cover.out
 	cd $(LAMPDDIR) && go tool cover -html=cover.out -o coverage.html
 
 coverweb: fmt
-	cd $(LAMPDDIR) && go test -v -coverprofile=cover.out
+	cd $(LAMPDDIR) && go test -timeout 300s -v -coverprofile=cover.out
 	cd $(LAMPDDIR) && go tool cover -html=cover.out
 
 clean:
@@ -160,6 +161,9 @@ golangci: tools
 	#
 	golangci-lint run $(LAMPDDIR)/...
 
+govulncheck: tools
+	govulncheck ./...
+
 version:
 	OLDVERSION="$(shell grep "VERSION =" $(LAMPDDIR)/main.go | awk '{print $$3}' | tr -d '"')"; \
 	NEWVERSION=$$(dialog --stdout --inputbox "New Version:" 0 0 "v$$OLDVERSION") && \
@@ -167,7 +171,8 @@ version:
 		if [ "v$$OLDVERSION" = "v$$NEWVERSION" -o "x$$NEWVERSION" = "x" ]; then echo "no changes"; exit 1; fi; \
 		sed -i -e 's/VERSION =.*/VERSION = "'$$NEWVERSION'"/g' $(LAMPDDIR)/main.go
 
-zip: build
+zip: clean
+	CGO_ENABLED=0 $(MAKE) build
 	VERSION="$(shell grep "VERSION =" $(LAMPDDIR)/main.go | awk '{print $$3}' | tr -d '"')"; \
 		COMMITS="$(shell git rev-list $$(git describe --tags --abbrev=0)..HEAD --count)"; \
 		DATE="$(shell LC_TIME=C date +%Y-%m-%d)"; \

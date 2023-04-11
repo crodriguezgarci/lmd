@@ -572,7 +572,6 @@ func (req *Request) buildDistributedRequestData(subBackends []string) (requestDa
 	// No header row
 	requestData["sendcolumnsheader"] = false
 
-	// Columns
 	// Columns need to be defined or else response will add them
 	isStatsRequest := len(req.Stats) != 0
 	if len(req.Columns) != 0 {
@@ -703,20 +702,20 @@ func (req *Request) ParseRequestHeaderLine(line []byte, options ParseOptions) (e
 		req.NumFilter++
 		return
 	case "and":
-		err = ParseFilterOp(And, args, &req.Filter)
+		err = parseFilterGroupOp(And, args, &req.Filter)
 		return
 	case "or":
-		err = ParseFilterOp(Or, args, &req.Filter)
+		err = parseFilterGroupOp(Or, args, &req.Filter)
 		return
 	case "stats":
 		err = ParseStats(args, req.Table, &req.Stats, options, req)
 		req.NumFilter++
 		return
 	case "statsand":
-		err = parseStatsOp(And, args, req.Table, &req.Stats, options, req)
+		err = parseStatsGroupOp(And, args, req.Table, &req.Stats, options, req)
 		return
 	case "statsor":
-		err = parseStatsOp(Or, args, req.Table, &req.Stats, options, req)
+		err = parseStatsGroupOp(Or, args, req.Table, &req.Stats, options, req)
 		return
 	case "sort":
 		err = parseSortHeader(&req.Sort, args)
@@ -732,7 +731,7 @@ func (req *Request) ParseRequestHeaderLine(line []byte, options ParseOptions) (e
 		req.Backends = strings.Fields(string(args))
 		return
 	case "columns":
-		req.Columns = strings.Fields(string(args))
+		req.Columns = append(req.Columns, strings.Fields(string(args))...)
 		return
 	case "responseheader":
 		err = parseResponseHeader(&req.ResponseFixed16, args)
@@ -754,10 +753,10 @@ func (req *Request) ParseRequestHeaderLine(line []byte, options ParseOptions) (e
 		req.NumFilter++
 		return
 	case "waitconditionand":
-		err = parseStatsOp(And, args, req.Table, &req.WaitCondition, options, req)
+		err = parseStatsGroupOp(And, args, req.Table, &req.WaitCondition, options, req)
 		return
 	case "waitconditionor":
-		err = parseStatsOp(Or, args, req.Table, &req.WaitCondition, options, req)
+		err = parseStatsGroupOp(Or, args, req.Table, &req.WaitCondition, options, req)
 		return
 	case "waitconditionnegate":
 		req.WaitConditionNegate = true
@@ -778,6 +777,9 @@ func (req *Request) ParseRequestHeaderLine(line []byte, options ParseOptions) (e
 		return
 	case "authuser":
 		err = parseAuthUser(&req.AuthUser, args)
+		return
+	case "statsnegate":
+		err = ParseFilterNegate(req.Stats)
 		return
 	}
 	err = fmt.Errorf("unrecognized header")
@@ -839,13 +841,13 @@ func parseSortHeader(field *[]*SortField, value []byte) (err error) {
 	return
 }
 
-func parseStatsOp(op GroupOperator, value []byte, table TableName, stats *[]*Filter, options ParseOptions, req *Request) (err error) {
+func parseStatsGroupOp(op GroupOperator, value []byte, table TableName, stats *[]*Filter, options ParseOptions, req *Request) (err error) {
 	num, cerr := strconv.Atoi(string(value))
 	if cerr == nil && num == 0 {
 		err = ParseStats([]byte("state != 9999"), table, stats, options, req)
 		return
 	}
-	err = ParseFilterOp(op, value, stats)
+	err = parseFilterGroupOp(op, value, stats)
 	if err != nil {
 		return
 	}
@@ -1031,10 +1033,11 @@ func (req *Request) optimizeResultLimit() (limit int) {
 	return
 }
 
-// optimizeFilterIndentation removes unnecessary filter indentation
+// optimizeFilterIndentation removes unnecessary filter indentation unless it is negated
 func (req *Request) optimizeFilterIndentation() {
 	for {
-		if len(req.Filter) == 1 && len(req.Filter[0].Filter) > 0 && req.Filter[0].GroupOperator == And {
+		if len(req.Filter) == 1 && len(req.Filter[0].Filter) > 0 &&
+			req.Filter[0].GroupOperator == And && !req.Filter[0].Negate {
 			req.Filter = req.Filter[0].Filter
 		} else {
 			break
@@ -1042,19 +1045,22 @@ func (req *Request) optimizeFilterIndentation() {
 	}
 }
 
-/* optimizeStatsGroups combines similar StatsAnd: to nested stats
-   for example with a query like:
+/*
+	optimizeStatsGroups combines similar StatsAnd: to nested stats
+	  for example with a query like:
 
 ```
-    Stats: has_been_checked = 1
-    Stats: state = 0
-    StatsAnd: 2
-    Stats: has_been_checked = 1
-    Stats: state = 1
-    StatsAnd: 2
+
+	Stats: has_been_checked = 1
+	Stats: state = 0
+	StatsAnd: 2
+	Stats: has_been_checked = 1
+	Stats: state = 1
+	StatsAnd: 2
+
 ```
 
-    those two counters can be combined, so the has_been_checked has only to be checked once
+	those two counters can be combined, so the has_been_checked has only to be checked once
 */
 func (req *Request) optimizeStatsGroups(stats []*Filter, renumber bool) []*Filter {
 	if len(stats) <= 1 {
@@ -1075,7 +1081,7 @@ func (req *Request) optimizeStatsGroups(stats []*Filter, renumber bool) []*Filte
 		// append to previous group?
 		if i >= 1 && lastGroup != nil {
 			firstFilter := s.Filter[0]
-			if lastGroup.Column == firstFilter.Column && lastGroup.Operator == firstFilter.Operator && lastGroup.StrValue == firstFilter.StrValue {
+			if lastGroup.Column == firstFilter.Column && lastGroup.Operator == firstFilter.Operator && lastGroup.StrValue == firstFilter.StrValue && lastGroup.Negate == firstFilter.Negate && len(firstFilter.Filter) == 0 {
 				lastGroup.Filter = append(lastGroup.Filter, removeFirstStatsFilter(s))
 				continue
 			}
@@ -1087,7 +1093,7 @@ func (req *Request) optimizeStatsGroups(stats []*Filter, renumber bool) []*Filte
 		// start a new group if the current first stats filter matches the next first stats filter
 		if len(stats) > i+1 {
 			next := stats[i+1]
-			if next.StatsType != Counter || next.Column != nil || len(next.Filter) < 2 {
+			if next.StatsType != Counter || next.Column != nil || len(next.Filter) < 2 || s.Filter[0].GroupOperator == Or {
 				groupedStats = append(groupedStats, s)
 				continue
 			}

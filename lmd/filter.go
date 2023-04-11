@@ -53,6 +53,7 @@ type Filter struct {
 	Operator   Operator
 	StrValue   string
 	FloatValue float64
+	IntValue   int
 	Regexp     *regexp.Regexp
 	CustomTag  string
 	IsEmpty    bool
@@ -156,12 +157,23 @@ func (op *Operator) String() string {
 
 // String converts a filter back to its string representation.
 func (f *Filter) String(prefix string) (str string) {
+	strNegate := ""
+
+	if f.Negate {
+		if f.StatsType == NoStats {
+			strNegate = fmt.Sprintf("%s\n", "Negate:")
+		} else {
+			strNegate = fmt.Sprintf("%s\n", "StatsNegate:")
+		}
+	}
+
 	if f.GroupOperator == And || f.GroupOperator == Or {
 		if len(f.Filter) > 0 {
 			for i := range f.Filter {
 				str += f.Filter[i].String(prefix)
 			}
 			str += fmt.Sprintf("%s%s: %d\n", prefix, f.GroupOperator.String(), len(f.Filter))
+			str += strNegate
 			return
 		}
 	}
@@ -190,9 +202,7 @@ func (f *Filter) String(prefix string) (str string) {
 	default:
 		str = fmt.Sprintf("Stats: %s %s\n", f.StatsType.String(), colName)
 	}
-	if f.Negate {
-		str += fmt.Sprintf("%s\n", "Negate:")
-	}
+	str += strNegate
 	return
 }
 
@@ -394,18 +404,17 @@ func (f *Filter) setFilterValue(strVal string) (err error) {
 	}
 	f.StrValue = strVal
 	switch colType {
-	case Int64ListCol:
-		fallthrough
-	case IntCol, Int64Col, FloatCol:
+	case IntCol, Int64Col, Int64ListCol, FloatCol:
 		switch f.Operator {
 		case Equal, Unequal, Greater, GreaterThan, Less, LessThan:
 			if !f.IsEmpty {
-				filtervalue, cerr := strconv.ParseFloat(strVal, 64)
+				filterValue, cerr := strconv.ParseFloat(strVal, 64)
 				if cerr != nil {
 					err = fmt.Errorf("could not convert %s to number in filter: %s", strVal, f.String(""))
 					return
 				}
-				f.FloatValue = filtervalue
+				f.FloatValue = filterValue
+				f.IntValue = int(filterValue)
 			}
 		default:
 		}
@@ -583,7 +592,7 @@ func ParseStats(value []byte, table TableName, stack *[]*Filter, options ParseOp
 
 // ParseFilterOp parses a text line into a filter group operator like And: <nr>.
 // It returns any error encountered.
-func ParseFilterOp(op GroupOperator, value []byte, stack *[]*Filter) (err error) {
+func parseFilterGroupOp(op GroupOperator, value []byte, stack *[]*Filter) (err error) {
 	num, cerr := strconv.Atoi(string(value))
 	if cerr != nil || num < 0 {
 		err = fmt.Errorf("%s must be a positive number", op.String())
@@ -609,11 +618,11 @@ func ParseFilterOp(op GroupOperator, value []byte, stack *[]*Filter) (err error)
 	return
 }
 
-// ParseFilterNegate sets the last filter group to be negated
+// ParseFilterNegate sets the last filter or stats group to be negated
 func ParseFilterNegate(stack []*Filter) (err error) {
 	stackLen := len(stack)
 	if stackLen == 0 {
-		err = fmt.Errorf("no filter on stack to negate")
+		err = fmt.Errorf("no filter/stats on stack to negate")
 		return
 	}
 	stack[stackLen-1].Negate = true
@@ -669,40 +678,38 @@ func (f *Filter) Match(row *DataRow) bool {
 }
 
 func (f *Filter) MatchInt(value int) bool {
-	intVal := int(f.FloatValue)
 	switch f.Operator {
 	case Equal:
-		return value == intVal
+		return value == f.IntValue
 	case Unequal:
-		return value != intVal
+		return value != f.IntValue
 	case Less:
-		return value < intVal
+		return value < f.IntValue
 	case LessThan:
-		return value <= intVal
+		return value <= f.IntValue
 	case Greater:
-		return value > intVal
+		return value > f.IntValue
 	case GreaterThan:
-		return value >= intVal
+		return value >= f.IntValue
 	}
 	strVal := fmt.Sprintf("%v", value)
 	return f.MatchString(strVal)
 }
 
 func (f *Filter) MatchInt64(value int64) bool {
-	intVal := int64(f.FloatValue)
 	switch f.Operator {
 	case Equal:
-		return value == intVal
+		return value == int64(f.IntValue)
 	case Unequal:
-		return value != intVal
+		return value != int64(f.IntValue)
 	case Less:
-		return value < intVal
+		return value < int64(f.IntValue)
 	case LessThan:
-		return value <= intVal
+		return value <= int64(f.IntValue)
 	case Greater:
-		return value > intVal
+		return value > int64(f.IntValue)
 	case GreaterThan:
-		return value >= intVal
+		return value >= int64(f.IntValue)
 	}
 	strVal := fmt.Sprintf("%v", value)
 	return f.MatchString(strVal)
@@ -833,7 +840,7 @@ func (f *Filter) MatchInt64List(list []int64) bool {
 	case Unequal:
 		return f.IsEmpty && len(list) != 0
 	case GreaterThan:
-		fVal := int64(f.FloatValue)
+		fVal := int64(f.IntValue)
 		for i := range list {
 			if fVal == list[i] {
 				return true
@@ -841,7 +848,7 @@ func (f *Filter) MatchInt64List(list []int64) bool {
 		}
 		return false
 	case GroupContainsNot:
-		fVal := int64(f.FloatValue)
+		fVal := int64(f.IntValue)
 		for i := range list {
 			if fVal == list[i] {
 				return false
