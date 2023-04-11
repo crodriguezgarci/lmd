@@ -73,6 +73,9 @@ type Filter struct {
 	ColumnOptional OptionalFlags
 	// copy of Column.Index if Column is of type LocalStore
 	ColumnIndex int
+
+	// tags rows
+	Tag string
 }
 
 // Operator defines a filter operator.
@@ -298,15 +301,21 @@ func (f *Filter) ApplyValue(val float64, count int) {
 
 // ParseFilter parses a single line into a filter object.
 // It returns any error encountered.
-func ParseFilter(value []byte, table TableName, stack *[]*Filter, options ParseOptions) (err error) {
+func ParseFilter(value []byte, table TableName, stack *[]*Filter, options ParseOptions, req *Request) (err error) {
 	tmp := bytes.SplitN(value, []byte(" "), 3)
 	if len(tmp) < 2 {
-		err = errors.New("filter header must be Filter: <field> <operator> <value>")
+		err = errors.New("filter header must be Filter: <field> <operator> <value> <?tag>")
 		return
 	}
 	// filter are allowed to be empty
 	if len(tmp) == 2 {
 		tmp = append(tmp, []byte(""))
+	}
+
+	filter_value := bytes.SplitN([]byte(tmp[2]), []byte(">>>"), 2)
+
+	if len(filter_value) == 1 {
+		filter_value = append(filter_value, []byte(""))
 	}
 
 	op, isRegex, err := parseFilterOp(tmp[1])
@@ -322,9 +331,14 @@ func ParseFilter(value []byte, table TableName, stack *[]*Filter, options ParseO
 		Negate:         false,
 		ColumnIndex:    -1,
 		ColumnOptional: col.Optional,
+		Tag:            string(filter_value[1]),
 	}
 
-	err = filter.setFilterValue(string(tmp[2]))
+	if len(filter_value[1]) > 0 {
+		req.Tags = append(req.Tags, string(filter_value[1]))
+	}
+
+	err = filter.setFilterValue(string(filter_value[0]))
 	if err != nil {
 		return
 	}
@@ -531,7 +545,7 @@ func parseFilterOp(in []byte) (op Operator, isRegex bool, err error) {
 
 // ParseStats parses a text line into a stats object.
 // It returns any error encountered.
-func ParseStats(value []byte, table TableName, stack *[]*Filter, options ParseOptions) (err error) {
+func ParseStats(value []byte, table TableName, stack *[]*Filter, options ParseOptions, req *Request) (err error) {
 	tmp := bytes.SplitN(value, []byte(" "), 2)
 	if len(tmp) < 2 {
 		err = fmt.Errorf("stats header, must be Stats: <field> <operator> <value> OR Stats: <sum|avg|min|max> <field>")
@@ -550,7 +564,7 @@ func ParseStats(value []byte, table TableName, stack *[]*Filter, options ParseOp
 	case "sum":
 		op = Sum
 	default:
-		err = ParseFilter(value, table, stack, options)
+		err = ParseFilter(value, table, stack, options, req)
 		if err != nil {
 			return
 		}

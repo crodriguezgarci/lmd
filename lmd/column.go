@@ -58,6 +58,7 @@ var VirtualColumnList = []VirtualColumnMapEntry{
 	{Name: "flags", ResolveFunc: VirtualColFlags},
 	{Name: "localtime", ResolveFunc: VirtualColLocaltime},
 	{Name: "empty", ResolveFunc: func(_ *DataRow, _ *Column) interface{} { return "" }}, // return empty string as placeholder for nonexisting columns
+	{Name: "tags", ResolveFunc: VirtualColTags},
 }
 
 // VirtualColumnMap maps is the lookup map for the VirtualColumnList

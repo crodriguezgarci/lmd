@@ -365,6 +365,9 @@ func NewHostsTable() (t *Table) {
 	t.AddExtraColumn("address_lc", LocalStore, None, StringCol, NoFlags, "IP address (lowercase)")
 	t.AddExtraColumn("display_name_lc", LocalStore, None, StringCol, NoFlags, "Optional display name of the host (lowercase)")
 
+	// tags column
+	t.AddExtraColumn("tags", VirtualStore, None, StringCol, Shinken, "Tags added on fly by filter tag")
+
 	// backend specific
 	t.AddExtraColumn("check_source", LocalStore, Dynamic, StringCol, Naemon|Icinga2, "Host check source address")
 
@@ -529,6 +532,9 @@ func NewServicesTable() (t *Table) {
 
 	// backend specific
 	t.AddExtraColumn("check_source", LocalStore, Dynamic, StringCol, Naemon|Icinga2, "Check source address")
+
+	// tags specific
+	t.AddExtraColumn("tags", VirtualStore, None, StringCol, Shinken, "Tags added on fly by filter tag")
 
 	// naemon specific
 	t.AddExtraColumn("obsess", LocalStore, Dynamic, IntCol, Naemon, "The obsessing over service")

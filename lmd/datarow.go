@@ -28,6 +28,7 @@ type DataRow struct {
 	dataServiceMemberList [][]ServiceMember      // stores list of servicemembers
 	dataStringLarge       []StringContainer      // stores large strings
 	dataInterfaceList     [][]interface{}
+	Tags                  []string
 }
 
 // NewDataRow creates a new DataRow
@@ -548,6 +549,14 @@ func VirtualColServicesWithInfo(d *DataRow, col *Column) interface{} {
 	return res
 }
 
+func VirtualColTags(d *DataRow, col *Column) interface{} {
+	if len(d.Tags) != 0 {
+		Tags := d.Tags
+		return string(Tags[0])
+	}
+	return ""
+}
+
 // VirtualColMembersWithState returns a list of hostgroup/servicegroup members with their states
 func VirtualColMembersWithState(d *DataRow, col *Column) interface{} {
 	switch d.DataStore.Table.Name {
@@ -694,6 +703,12 @@ func (d *DataRow) getVirtualSubLMDValue(col *Column) (val interface{}, ok bool) 
 	return
 }
 
+func (d *DataRow) TagsRow(filter *Filter) {
+	if filter.Tag != "" {
+		d.Tags = append(d.Tags, filter.Tag)
+	}
+}
+
 // MatchFilter returns true if the given filter matches the given datarow.
 // negate param is to force filter to be negated. Default is false.
 func (d *DataRow) MatchFilter(filter *Filter, negate bool) bool {
@@ -717,9 +732,15 @@ func (d *DataRow) MatchFilter(filter *Filter, negate bool) bool {
 			if !d.MatchFilter(f, negate) {
 				return false
 			}
+			d.TagsRow(f)
 		}
 		return true
 	case Or:
+		for _, f := range filter.Filter {
+			if d.MatchFilter(f, negate) {
+				d.TagsRow(f)
+			}
+		}
 		for _, f := range filter.Filter {
 			if d.MatchFilter(f, negate) {
 				return true

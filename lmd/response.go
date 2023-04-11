@@ -509,6 +509,7 @@ func (res *Response) WriteDataResponse(json *jsoniter.Stream) {
 				json.Flush()
 			}
 			res.RawResults.DataResult[i].WriteJSON(json, res.Request.RequestColumns)
+			res.RawResults.DataResult[i].Tags = make([]string, 0)
 		}
 	default:
 		logWith(res).Errorf("response contains no result at all")
@@ -794,6 +795,31 @@ func (res *Response) BuildLocalResponseData(store *DataStore, resultcollector ch
 	}
 }
 
+func removeDuplicateValues(intSlice []string) []string {
+	keys := make(map[string]bool)
+	list := []string{}
+
+	// If the key(values of the slice) is not equal
+	// to the already present value in new slice (list)
+	// then we append it. else we jump on another element.
+	for _, entry := range intSlice {
+		if _, value := keys[entry]; !value {
+			keys[entry] = true
+			list = append(list, entry)
+		}
+	}
+	return list
+}
+
+func stringInSlice(a string, list []string) bool {
+	for _, b := range list {
+		if b == a {
+			return true
+		}
+	}
+	return false
+}
+
 func (res *Response) gatherResultRows(store *DataStore, resultcollector chan *PeerResponse) {
 	result := &PeerResponse{}
 	defer func() {
@@ -802,11 +828,10 @@ func (res *Response) gatherResultRows(store *DataStore, resultcollector chan *Pe
 	req := res.Request
 
 	// if there is no sort header or sort by name only,
-	// we can drastically reduce the result set by applying the limit here already
+	// we can drastically reduce the result set by applying the limit here already.
+	// If request has not defined limit, the value returned by
+	// optimizeResultLimit() will be -1
 	limit := req.optimizeResultLimit()
-	if limit <= 0 {
-		limit = len(store.Data) + 1
-	}
 
 	// no need to count all the way to the end unless the total number is required in wrapped_json output
 	breakOnLimit := res.Request.OutputFormat != OutputFormatWrappedJSON
@@ -818,25 +843,62 @@ Rows:
 		// does our filter match?
 		for _, f := range req.Filter {
 			if !row.MatchFilter(f, false) {
+				row.Tags = make([]string, 0)
 				continue Rows
 			}
+			row.TagsRow(f)
 		}
+
+		row.Tags = removeDuplicateValues(row.Tags)
 
 		if !row.checkAuth(req.AuthUser) {
 			continue Rows
 		}
 
-		result.Total++
+		if len(row.Tags) > 0 {
+			for _, tag := range row.Tags {
+				if stringInSlice(tag, res.Request.Tags) {
+					result.Total++
+				}
+			}
+		} else {
+			result.Total++
+		}
 
 		// check if we have enough result rows already
 		// we still need to count how many result we would have...
-		if result.Total > limit {
+		if limit >= 0 && result.Total > limit {
 			if breakOnLimit {
+				row.Tags = make([]string, 0)
 				return
 			}
 			continue Rows
 		}
-		result.Rows = append(result.Rows, row)
+
+		if len(row.Tags) > 0 {
+			for _, tag := range row.Tags {
+				if stringInSlice(tag, res.Request.Tags) {
+					tagged_row, _ := NewDataRow(row.DataStore, nil, nil, 0, false)
+					tagged_row.dataString = row.dataString
+					tagged_row.Refs = row.Refs
+					tagged_row.dataInt = row.dataInt
+					tagged_row.dataInt64 = row.dataInt64
+					tagged_row.dataFloat = row.dataFloat
+					tagged_row.dataStringList = row.dataStringList
+					tagged_row.dataInt64List = row.dataInt64List
+					tagged_row.dataServiceMemberList = row.dataServiceMemberList
+					tagged_row.dataStringLarge = row.dataStringLarge
+					tagged_row.dataInterfaceList = row.dataInterfaceList
+					tagged_row.Tags = []string{tag}
+					result.Rows = append(result.Rows, tagged_row)
+					// result.Total++
+				}
+			}
+			row.Tags = make([]string, 0)
+		} else {
+			// result.Total++
+			result.Rows = append(result.Rows, row)
+		}
 	}
 }
 
