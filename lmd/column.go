@@ -50,6 +50,7 @@ var VirtualColumnList = []VirtualColumnMapEntry{
 	{Name: "has_long_plugin_output", ResolveFunc: VirtualColHasLongPluginOutput},
 	{Name: "services_with_state", ResolveFunc: VirtualColServicesWithInfo},
 	{Name: "services_with_info", ResolveFunc: VirtualColServicesWithInfo},
+	{Name: "services_with_active_checks_enabled", ResolveFunc: VirtualColServicesWithInfo},
 	{Name: "comments_with_info", ResolveFunc: VirtualColCommentsWithInfo},
 	{Name: "downtimes_with_info", ResolveFunc: VirtualColDowntimesWithInfo},
 	{Name: "members_with_state", ResolveFunc: VirtualColMembersWithState},

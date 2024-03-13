@@ -389,7 +389,7 @@ func NewHostsTable() (t *Table) {
 
 	// shinken specific
 	t.AddExtraColumn("is_impact", LocalStore, Dynamic, IntCol, Shinken, "Whether the host state is an impact or not (0/1)")
-	t.AddExtraColumn("business_impact", LocalStore, Static, IntCol, Shinken, "An importance level. From 0 (not important) to 5 (top for business)")
+	t.AddExtraColumn("business_impact", LocalStore, Dynamic, IntCol, Shinken, "An importance level. From 0 (not important) to 5 (top for business)")
 	t.AddExtraColumn("source_problems", LocalStore, Dynamic, StringListCol, Shinken, "The name of the source problems (host or service)")
 	t.AddExtraColumn("impacts", LocalStore, Dynamic, StringListCol, Shinken, "List of what the source impact (list of hosts and services)")
 	t.AddExtraColumn("criticity", LocalStore, Dynamic, IntCol, Shinken, "The importance we gave to this host between the minimum 0 and the maximum 5")
@@ -399,12 +399,17 @@ func NewHostsTable() (t *Table) {
 	t.AddExtraColumn("got_business_rule", LocalStore, Dynamic, IntCol, Shinken, "Whether the host state is an business rule based host or not (0/1)")
 	t.AddExtraColumn("parent_dependencies", LocalStore, Dynamic, StringCol, Shinken, "List of the dependencies (logical, network or business one) of this host")
 
+	// wocu specific
+	t.AddExtraColumn("is_passive", LocalStore, Static, IntCol, Shinken, "Indicates if the host is strictly passive (does not have a valid active check to run) (0/1)")
+	t.AddExtraColumn("pending", LocalStore, Dynamic, IntCol, Shinken, "Indicates if the host is pending (never has been checked and not is passive) (0/1)")
+
 	// icinga2 specific
 	t.AddExtraColumn("address6", LocalStore, Static, StringCol, Icinga2, "IPv6 address")
 
 	t.AddExtraColumn("custom_variables", VirtualStore, None, CustomVarCol, NoFlags, "A dictionary of the custom variables")
 	t.AddExtraColumn("services_with_info", VirtualStore, None, InterfaceListCol, NoFlags, "The services, including info, that is associated with the host")
 	t.AddExtraColumn("services_with_state", VirtualStore, None, InterfaceListCol, NoFlags, "The services, including state info, that is associated with the host")
+	t.AddExtraColumn("services_with_active_checks_enabled", VirtualStore, None, InterfaceListCol, NoFlags, "The services, including state and active check status info, that is associated with the host")
 	t.AddExtraColumn("comments_with_info", VirtualStore, None, InterfaceListCol, NoFlags, "A list of all comments of the host with id, author and comment")
 	t.AddExtraColumn("downtimes_with_info", VirtualStore, None, InterfaceListCol, NoFlags, "A list of all downtimes of the host with id, author and comment")
 	t.AddPeerInfoColumn("lmd_last_cache_update", FloatCol, "Timestamp of the last LMD update of this object")
@@ -562,6 +567,11 @@ func NewServicesTable() (t *Table) {
 	t.AddExtraColumn("got_business_rule", LocalStore, Dynamic, IntCol, Shinken, "Whether the service state is an business rule based host or not (0/1)")
 	t.AddExtraColumn("parent_dependencies", LocalStore, Dynamic, StringCol, Shinken, "List of the dependencies (logical, network or business one) of this service")
 
+	// wocu specific
+	t.AddExtraColumn("is_passive", LocalStore, Static, IntCol, Shinken, "Indicates if the service is strictly passive (does not have a valid active check to run) (0/1)")
+	t.AddExtraColumn("pending", LocalStore, Dynamic, IntCol, Shinken, "Indicates if the service is pending (never has been checked and not is passive) (0/1)")
+	t.AddExtraColumn("pack", LocalStore, Static, StringCol, Shinken, "Indicates the Wocu Pack to which it belongs")
+
 	t.AddRefColumns(TableHosts, "host", []string{"host_name"})
 
 	t.AddExtraColumn("custom_variables", VirtualStore, None, CustomVarCol, NoFlags, "A dictionary of the custom variables")
@@ -661,6 +671,7 @@ func NewLogTable() (t *Table) {
 
 	t.AddColumn("attempt", Static, IntCol, "The number of the check attempt")
 	t.AddColumn("class", Static, IntCol, "The class of the message as integer (0:info, 1:state, 2:program, 3:notification, 4:passive, 5:command)")
+	t.AddColumn("logobject", Static, IntCol, "Type of object associated to log (0: info, 1:host, 2: service, 3:contact)")
 	t.AddColumn("contact_name", Static, StringCol, "The name of the contact the log entry is about (might be empty)")
 	t.AddColumn("host_name", Static, StringCol, "The name of the host the log entry is about (might be empty)")
 	t.AddColumn("lineno", Static, IntCol, "The number of the line in the log file")
@@ -675,6 +686,11 @@ func NewLogTable() (t *Table) {
 	t.AddColumn("command_name", Static, StringCol, "The name of the command of the log entry (e.g. for notifications)")
 	t.AddColumn("current_service_contacts", Static, StringListCol, "A list of all contacts of the service, either direct or via a contact group")
 	t.AddColumn("current_host_contacts", Static, StringListCol, "A list of all contacts of this host, either direct or via a contact group")
+	t.AddColumn("current_host_display_name", Static, StringCol, "The display name of the host the log entry is about (might be empty)")
+	t.AddColumn("current_host_groups", Static, StringListCol, "A list of all host groups of the host the log entry is about (might be empty)")
+	t.AddColumn("current_host_check_command", Static, StringCol, "The check command of the host the log entry is about (might be empty)")
+	t.AddColumn("current_service_display_name", Static, StringCol, "The display name of the service the log entry is about (might be empty)")
+	t.AddColumn("current_service_check_command", Static, StringCol, "The check command of the service the log entry is about (might be empty)")
 
 	t.AddPeerInfoColumn("peer_key", StringCol, "Id of this peer")
 	t.AddPeerInfoColumn("peer_name", StringCol, "Name of this peer")

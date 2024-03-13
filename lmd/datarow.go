@@ -534,6 +534,7 @@ func VirtualColServicesWithInfo(d *DataRow, col *Column) interface{} {
 	stateCol := servicesStore.Table.GetColumn("state")
 	checkedCol := servicesStore.Table.GetColumn("has_been_checked")
 	outputCol := servicesStore.Table.GetColumn("plugin_output")
+	activeChecksEnabled := servicesStore.Table.GetColumn("active_checks_enabled")
 	res := make([]interface{}, len(services))
 	for i := range services {
 		service, ok := servicesStore.Index2[hostName][services[i]]
@@ -544,6 +545,10 @@ func VirtualColServicesWithInfo(d *DataRow, col *Column) interface{} {
 		serviceValue := []interface{}{services[i], service.GetInt(stateCol), service.GetInt(checkedCol)}
 		if col.Name == "services_with_info" {
 			serviceValue = append(serviceValue, service.GetString(outputCol))
+		}
+
+		if col.Name == "services_with_active_checks_enabled" {
+			serviceValue = append(serviceValue, service.GetInt(activeChecksEnabled))
 		}
 		res[i] = serviceValue
 	}
