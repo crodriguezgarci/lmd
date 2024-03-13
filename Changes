@@ -1,5 +1,23 @@
 This file documents the revision history for the Livestatus Multitool Daemon (LMD)
 
+2.2.0    Tue Mar 12 15:03:31 CET 2024
+          - synchronize naemon more efficient based on last_update column
+          - reduce number direct dependencies (build tools moved into separate pkg)
+          - performance improvements
+          - fix crash in mixed core version setups
+          - fix crash on type assertion (#142)
+          - migrate test framework
+
+2.1.9    Wed Jan 24 20:50:13 CET 2024
+          - performance improvements
+          - fix regexp filter using case sensitive index
+
+2.1.8    Mon Jan 22 08:55:02 CET 2024
+          - submit pending commands as soon as syncing started
+          - accept python3 outputformat (#128)
+          - go build dependency changed to v1.21
+          - fix regexp filter using case sensitive index
+
 2.1.7    Fri Oct 20 10:08:38 CEST 2023
           - improve full scan sync, less delta scan timestamp filter too complex messages
           - add more contacts columns (id, host/service_notification_commands, in_host/service_notification_period,in_host_notification_period)
